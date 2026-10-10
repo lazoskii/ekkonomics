@@ -122,6 +122,21 @@
     return inv ? inv.amount : expensesSumForCard(cardId, monthKey);
   }
 
+  // Soma de todos os cartões num mês (usado pro "Total do mês" e pela
+  // seção "Resumo geral" ao calcular a média mensal histórica).
+  function monthTotalAll(monthKey) {
+    return state.cards.reduce((s, c) => s + cardMonthTotal(c.id, monthKey), 0);
+  }
+
+  // Todos os meses (YYYY-MM) que têm algum gasto ou fatura lançados, usado
+  // pra calcular a média mensal em renderOverview().
+  function monthsWithActivity() {
+    const months = new Set();
+    state.expenses.forEach((e) => months.add(e.date.slice(0, 7)));
+    state.invoices.forEach((i) => months.add(i.month));
+    return [...months];
+  }
+
   function toast(msg) {
     const el = document.getElementById("toast");
     el.textContent = msg;
@@ -189,6 +204,7 @@
     monthLabelEl.textContent = monthLabel(state.currentMonth);
     renderInvoiceEntry();
     renderDashboard();
+    renderOverview();
     renderCards();
     renderExpenses();
   }
@@ -351,6 +367,52 @@
         <div class="row-value">${formatCurrency(amt)}</div>
       `;
       dueList.appendChild(row);
+    });
+  }
+
+  // Mini relatório no fim da Início: total do mês atual, média mensal
+  // histórica (considerando só meses com algum gasto/fatura lançados) e
+  // quantidade de cartões cadastrados.
+  function renderOverview() {
+    const months = monthsWithActivity();
+    const monthlyTotals = months.map((m) => monthTotalAll(m));
+    const average = monthlyTotals.length
+      ? monthlyTotals.reduce((s, v) => s + v, 0) / monthlyTotals.length
+      : 0;
+
+    const rows = [
+      {
+        title: "Total deste mês",
+        value: formatCurrency(monthTotalAll(state.currentMonth)),
+        sub: monthLabel(state.currentMonth),
+      },
+      {
+        title: "Média mensal",
+        value: formatCurrency(average),
+        sub: months.length
+          ? `Baseado em ${months.length} mês${months.length > 1 ? "es" : ""} com lançamentos`
+          : "Sem lançamentos ainda",
+      },
+      {
+        title: "Cartões ativos",
+        value: String(state.cards.length),
+        sub: state.cards.length ? "cadastrados" : "nenhum cadastrado ainda",
+      },
+    ];
+
+    const list = $("overviewList");
+    list.innerHTML = "";
+    rows.forEach(({ title, value, sub }) => {
+      const row = document.createElement("div");
+      row.className = "row-card";
+      row.innerHTML = `
+        <div class="row-main">
+          <div class="row-title">${title}</div>
+          <div class="row-sub">${sub}</div>
+        </div>
+        <div class="row-value">${value}</div>
+      `;
+      list.appendChild(row);
     });
   }
 

@@ -2,7 +2,7 @@
 // offline depois de instalado. IMPORTANTE: sempre que algum arquivo em
 // ASSETS mudar, suba o número do CACHE_NAME — senão os navegadores que já
 // instalaram o app continuam servindo a versão antiga em cache.
-const CACHE_NAME = "ekko-v5";
+const CACHE_NAME = "ekko-v6";
 const ASSETS = [
   "./",
   "./index.html",

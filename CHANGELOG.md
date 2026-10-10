@@ -2,6 +2,12 @@
 
 Registro das mudanças do app, da mais recente para a mais antiga.
 
+## 2026-10-10
+
+- Nova seção **"Resumo geral"** no fim da tela Início: total do mês atual,
+  média mensal histórica (média dos meses que têm algum gasto ou fatura
+  lançados) e quantidade de cartões cadastrados.
+
 ## 2026-10-09
 
 - Movida a **fatura manual** para sua própria seção na tela Início
