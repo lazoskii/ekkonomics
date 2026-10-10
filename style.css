@@ -1,3 +1,6 @@
+/* Ekko — tokens de tema (claro por padrão, escuro via prefers-color-scheme).
+   --nav-h / --safe-bottom alimentam os cálculos de espaçamento fixo do FAB,
+   da bottom-nav e do toast lá embaixo neste arquivo. */
 :root {
   --bg: #f1f5f9;
   --surface: #ffffff;
@@ -45,6 +48,11 @@ button, input, select {
   font-family: inherit;
 }
 
+/* topbar, main, .fab e .bottom-nav compartilham max-width:640px + margin
+   auto pra ficarem alinhados na mesma coluna central — importante em
+   janelas largas de desktop, onde senão cada um centralizaria diferente
+   (ou, no caso de elementos position:fixed, grudaria nas bordas da janela
+   inteira em vez de acompanhar o conteúdo). */
 .topbar {
   position: sticky;
   top: 0;
@@ -181,6 +189,7 @@ main {
 .row-value { font-weight: 800; font-size: 15px; white-space: nowrap; }
 .row-value.neg { color: var(--danger); }
 
+/* Campo de fatura manual na linha "Por cartão" do dashboard (ver renderDashboard em app.js) */
 .invoice-input {
   width: 108px;
   flex-shrink: 0;
@@ -257,6 +266,9 @@ main {
 .btn-danger { background: var(--danger-bg); color: var(--danger); }
 .btn-ghost { background: transparent; color: var(--danger); margin-right: auto; padding: 12px 4px; }
 
+/* right: max(...) ancora o botão no canto da coluna de 640px quando a
+   janela é mais larga que isso, e cai pra 20px fixos em telas estreitas
+   (celular) — ver comentário no topo do .topbar. */
 .fab {
   position: fixed;
   right: max(20px, calc((100% - 640px) / 2 + 20px));

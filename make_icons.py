@@ -1,3 +1,9 @@
+# Gera os ícones do PWA (icons/*.png) a partir de formas desenhadas com
+# Pillow — não depende de nenhum arquivo de imagem externo. Rodar com
+# `python make_icons.py` sempre que quiser mudar as cores/design do ícone;
+# os arquivos gerados já estão referenciados em manifest.webmanifest e
+# index.html, então os nomes/tamanhos abaixo não podem mudar sem atualizar
+# os dois.
 from PIL import Image, ImageDraw
 import os
 

@@ -1,3 +1,10 @@
+<!--
+  Ekko (Ekkonomics) — controle de cartões e gastos mensais.
+  Página única: as 4 abas abaixo (#view-*) ficam todas no DOM e são
+  mostradas/escondidas via classe .active (ver style.css e app.js).
+  Toda a lógica e renderização estão em app.js; aqui só tem a estrutura
+  estática + os 2 modais de formulário (cartão e gasto).
+-->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -21,6 +28,7 @@
 </head>
 <body>
 
+<!-- Topo fixo: título da aba atual + seletor de mês (só visível em Início/Gastos, controlado por app.js) -->
 <header class="topbar">
   <h1 id="pageTitle">Início</h1>
   <div class="month-switch">
@@ -32,6 +40,7 @@
 
 <main id="main">
 
+  <!-- Aba Início: resumo do mês selecionado -->
   <section id="view-dashboard" class="view active">
     <div class="summary-row">
       <div class="stat-card primary">
@@ -44,6 +53,7 @@
       </div>
     </div>
 
+    <!-- Cada linha aqui tem um campo de fatura manual (ver renderDashboard em app.js) -->
     <h2 class="section-title">Por cartão</h2>
     <div id="cardsSummaryList" class="list"></div>
     <p class="empty-hint" id="cardsSummaryEmpty" hidden>Nenhum cartão cadastrado ainda.</p>
@@ -57,11 +67,13 @@
     <p class="empty-hint" id="dueEmpty" hidden>Cadastre o dia de vencimento nos cartões para ver aqui.</p>
   </section>
 
+  <!-- Aba Cartões: lista de cartões cadastrados (toque abre o modal de edição) -->
   <section id="view-cards" class="view">
     <div id="cardsList" class="list"></div>
     <p class="empty-hint" id="cardsEmpty" hidden>Nenhum cartão ainda. Toque no botão + para adicionar.</p>
   </section>
 
+  <!-- Aba Gastos: lançamentos individuais do mês, com filtro por cartão -->
   <section id="view-expenses" class="view">
     <div class="filters">
       <select id="filterCard">
@@ -72,6 +84,7 @@
     <p class="empty-hint" id="expensesEmpty" hidden>Nenhum gasto neste mês.</p>
   </section>
 
+  <!-- Aba Mais: backup (export/import) e apagar todos os dados -->
   <section id="view-settings" class="view">
     <h2 class="section-title">Backup dos dados</h2>
     <div class="settings-group">
@@ -89,6 +102,7 @@
 
 </main>
 
+<!-- Botão flutuante contextual: abre modal de cartão na aba Cartões, senão modal de gasto (ver app.js) -->
 <button id="fab" class="fab" aria-label="Adicionar">+</button>
 
 <nav class="bottom-nav">
@@ -98,7 +112,7 @@
   <button data-view="settings" class="nav-btn"><span class="icon">⚙️</span><span>Mais</span></button>
 </nav>
 
-<!-- Modal: cartão -->
+<!-- Modal: cartão (criação e edição compartilham o mesmo form; #cardId vazio = criação) -->
 <div id="modalCard" class="modal-overlay hidden">
   <div class="modal">
     <h3 id="cardModalTitle">Novo cartão</h3>
@@ -130,7 +144,7 @@
   </div>
 </div>
 
-<!-- Modal: gasto -->
+<!-- Modal: gasto (lançamento individual; use a fatura manual na aba Início para não lançar compra por compra) -->
 <div id="modalExpense" class="modal-overlay hidden">
   <div class="modal">
     <h3 id="expenseModalTitle">Novo gasto</h3>

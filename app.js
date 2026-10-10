@@ -1,7 +1,19 @@
+// Ekko (Ekkonomics) — controle de cartões e gastos mensais.
+// App 100% front-end: sem build, sem backend. Todo o estado mora em
+// localStorage (ver STORAGE_KEY abaixo) e a tela inteira é renderizada de
+// novo a cada mudança via renderAll() — não há framework nem virtual DOM.
 (function () {
   "use strict";
 
-  /* ---------- storage ---------- */
+  /* ---------- storage ----------
+     Formato salvo em localStorage[STORAGE_KEY]:
+       { cards: Card[], expenses: Expense[], invoices: Invoice[] }
+     Card     = { id, name, color, limit, closingDay, dueDay, createdAt }
+     Expense  = { id, cardId, description, amount, date (YYYY-MM-DD), category, createdAt }
+     Invoice  = { cardId, month (YYYY-MM), amount } — fatura lançada manualmente
+                 para aquele cartão naquele mês, substituindo a soma dos gastos
+                 (ver cardMonthTotal). Uma entrada por par cardId+month.
+  */
   const STORAGE_KEY = "cf_data_v1";
 
   function loadData() {
@@ -24,7 +36,11 @@
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ cards: state.cards, expenses: state.expenses, invoices: state.invoices }));
   }
 
-  /* ---------- state ---------- */
+  /* ---------- state ----------
+     Único objeto de estado da aplicação. view/currentMonth/filterCard são
+     efêmeros (não salvos); cards/expenses/invoices vêm do loadData() e são
+     persistidos a cada mudança via saveData().
+  */
   const state = Object.assign({ view: "dashboard", currentMonth: getMonthKey(new Date()), filterCard: "" }, loadData());
 
   const COLORS = ["#2563eb", "#7c3aed", "#db2777", "#dc2626", "#ea580c", "#ca8a04", "#16a34a", "#0891b2", "#475569", "#111827"];
@@ -76,10 +92,12 @@
     return state.expenses.filter((e) => e.date.slice(0, 7) === monthKey);
   }
 
+  function expensesForCard(cardId, monthKey) {
+    return state.expenses.filter((e) => e.cardId === cardId && e.date.slice(0, 7) === monthKey);
+  }
+
   function expensesSumForCard(cardId, monthKey) {
-    return state.expenses
-      .filter((e) => e.cardId === cardId && e.date.slice(0, 7) === monthKey)
-      .reduce((s, e) => s + e.amount, 0);
+    return expensesForCard(cardId, monthKey).reduce((s, e) => s + e.amount, 0);
   }
 
   function getInvoice(cardId, monthKey) {
@@ -96,6 +114,9 @@
     state.invoices = state.invoices.filter((i) => !(i.cardId === cardId && i.month === monthKey));
   }
 
+  // Total "oficial" de um cartão no mês: usa a fatura manual quando existe,
+  // senão cai para a soma dos gastos lançados individualmente. É essa função
+  // que decide qual dos dois modos de lançamento vale para cada cartão/mês.
   function cardMonthTotal(cardId, monthKey) {
     const inv = getInvoice(cardId, monthKey);
     return inv ? inv.amount : expensesSumForCard(cardId, monthKey);
@@ -119,7 +140,10 @@
 
   const VIEW_TITLES = { dashboard: "Início", cards: "Cartões", expenses: "Gastos", settings: "Mais" };
 
-  /* ---------- navigation ---------- */
+  /* ---------- navigation ----------
+     4 "telas" vivem todas no DOM o tempo todo (ver .view/.view.active no
+     CSS); trocar de aba só alterna a classe "active" e redesenha tudo.
+  */
   function setView(view) {
     state.view = view;
     document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
@@ -156,7 +180,11 @@
     }
   });
 
-  /* ---------- rendering ---------- */
+  /* ---------- rendering ----------
+     Sem framework: cada render* função limpa o innerHTML da sua lista e
+     reconstrói as linhas do zero a partir do state. Simples e rápido o
+     suficiente para a quantidade de dados que esse app lida (uso pessoal).
+  */
   function renderAll() {
     monthLabelEl.textContent = monthLabel(state.currentMonth);
     renderDashboard();
@@ -167,7 +195,8 @@
   function renderDashboard() {
     const monthExpenses = expensesOfMonth(state.currentMonth);
 
-    // by card (respects manual invoice override when present)
+    // Total "por cartão" já considera a fatura manual (cardMonthTotal),
+    // por isso é calculado para TODOS os cartões, não só os com gastos.
     const byCard = new Map();
     state.cards.forEach((c) => byCard.set(c.id, cardMonthTotal(c.id, state.currentMonth)));
     const total = [...byCard.values()].reduce((s, v) => s + v, 0);
@@ -184,7 +213,7 @@
 
     cardsWithTotals.forEach(({ card, total: t }) => {
       const inv = getInvoice(card.id, state.currentMonth);
-      const expCount = state.expenses.filter((e) => e.cardId === card.id && e.date.slice(0, 7) === state.currentMonth).length;
+      const expCount = expensesForCard(card.id, state.currentMonth).length;
       const pct = card.limit ? Math.min(100, (t / card.limit) * 100) : null;
 
       let subText;
@@ -212,6 +241,8 @@
       `;
       cardsList.appendChild(row);
 
+      // Campo de fatura manual: salva só ao perder o foco (change), não a
+      // cada tecla, pra não re-renderizar a lista inteira enquanto digita.
       const input = row.querySelector(".invoice-input");
       input.addEventListener("click", (e) => e.stopPropagation());
       input.addEventListener("keydown", (e) => {
@@ -220,6 +251,7 @@
       input.addEventListener("change", () => {
         const raw = input.value.trim();
         if (raw === "") {
+          // campo limpo = volta a somar os gastos lançados automaticamente
           if (inv) {
             removeInvoice(card.id, state.currentMonth);
             saveData();
@@ -349,6 +381,8 @@
     });
   }
 
+  // Escapa texto do usuário (nome do cartão, descrição do gasto, etc.) antes
+  // de injetar em innerHTML, pra evitar HTML/script injection.
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
@@ -358,7 +392,10 @@
     renderExpenses();
   });
 
-  /* ---------- modal: card ---------- */
+  /* ---------- modal: card ----------
+     Um único modal/form serve tanto pra criar quanto pra editar (campo
+     oculto #cardId guarda o id em edição; vazio = criação nova).
+  */
   const modalCard = $("modalCard");
   const formCard = $("formCard");
 
@@ -434,7 +471,9 @@
     toast("Cartão excluído");
   });
 
-  /* ---------- modal: expense ---------- */
+  /* ---------- modal: expense ----------
+     Mesmo esquema do modal de cartão: #expenseId vazio = novo gasto.
+  */
   const modalExpense = $("modalExpense");
   const formExpense = $("formExpense");
 
@@ -522,7 +561,11 @@
     }
   });
 
-  /* ---------- settings: export / import / clear ---------- */
+  /* ---------- settings: export / import / clear ----------
+     Como tudo mora em localStorage (por dispositivo/navegador), exportar
+     gera um .json com cards+expenses+invoices pra backup ou pra levar os
+     dados pra outro aparelho; importar lê esse .json de volta.
+  */
   $("btnExport").addEventListener("click", () => {
     const payload = { exportedAt: new Date().toISOString(), cards: state.cards, expenses: state.expenses, invoices: state.invoices };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -551,6 +594,7 @@
         const replace = confirm(
           "Importar vai SUBSTITUIR todos os dados atuais por este backup. Toque OK para substituir, ou Cancelar para mesclar com os dados existentes."
         );
+        // invoices é opcional: backups antigos (antes dessa feature) não têm o campo
         const parsedInvoices = Array.isArray(parsed.invoices) ? parsed.invoices : [];
         if (replace) {
           state.cards = parsed.cards;
@@ -589,7 +633,10 @@
     toast("Dados apagados");
   });
 
-  /* ---------- service worker ---------- */
+  /* ---------- service worker ----------
+     Habilita instalação como PWA e funcionamento offline (ver sw.js).
+     Só registra em http(s) — em file:// o navegador ignora/bloqueia.
+  */
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
       navigator.serviceWorker.register("sw.js").catch((err) => console.warn("SW falhou:", err));
@@ -597,5 +644,5 @@
   }
 
   /* ---------- init ---------- */
-  setView("dashboard");
+  setView("dashboard"); // primeira renderização
 })();
