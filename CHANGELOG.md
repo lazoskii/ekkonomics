@@ -4,6 +4,9 @@ Registro das mudanças do app, da mais recente para a mais antiga.
 
 ## 2026-10-09
 
+- Movida a **fatura manual** para sua própria seção na tela Início
+  ("Lançar fatura do mês", logo abaixo dos cards de resumo) em vez de ficar
+  embutida dentro da lista "Por cartão" — essa lista voltou a ser só exibição.
 - **Fatura manual por cartão**: nova forma de lançar gastos — digite direto o
   valor total da fatura do mês de um cartão na tela inicial, sem precisar
   lançar compra por compra. Quando um valor manual existe, ele substitui a

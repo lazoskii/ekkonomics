@@ -187,9 +187,74 @@
   */
   function renderAll() {
     monthLabelEl.textContent = monthLabel(state.currentMonth);
+    renderInvoiceEntry();
     renderDashboard();
     renderCards();
     renderExpenses();
+  }
+
+  // Seção "Lançar fatura do mês": uma linha editável por cartão, independente
+  // da lista "Por cartão" (que é só exibição). É aqui que a fatura manual é
+  // digitada/removida — ver cardMonthTotal para como ela afeta os totais.
+  function renderInvoiceEntry() {
+    const list = $("invoiceEntryList");
+    list.innerHTML = "";
+    $("invoiceEntryEmpty").hidden = state.cards.length > 0;
+
+    state.cards.forEach((card) => {
+      const inv = getInvoice(card.id, state.currentMonth);
+      const autoSum = expensesSumForCard(card.id, state.currentMonth);
+      const expCount = expensesForCard(card.id, state.currentMonth).length;
+
+      const subText = inv
+        ? "Fatura lançada manualmente"
+        : expCount > 0
+          ? `Soma de ${expCount} gasto${expCount > 1 ? "s" : ""} lançados`
+          : "Nenhum gasto lançado ainda";
+
+      const row = document.createElement("div");
+      row.className = "row-card row-invoice";
+      row.innerHTML = `
+        <div class="swatch" style="background:${card.color}"></div>
+        <div class="row-main">
+          <div class="row-title">${escapeHtml(card.name)}</div>
+          <div class="row-sub">${subText}</div>
+        </div>
+        <input type="number" class="invoice-input" inputmode="decimal" step="0.01" min="0"
+          placeholder="${formatCurrency(autoSum)}"
+          value="${inv ? inv.amount : ""}">
+      `;
+      list.appendChild(row);
+
+      // Salva só ao perder o foco (change) ou Enter, não a cada tecla, pra
+      // não re-renderizar a lista inteira (e perder o foco) enquanto digita.
+      const input = row.querySelector(".invoice-input");
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") input.blur();
+      });
+      input.addEventListener("change", () => {
+        const raw = input.value.trim();
+        if (raw === "") {
+          // campo limpo = volta a somar os gastos lançados automaticamente
+          if (inv) {
+            removeInvoice(card.id, state.currentMonth);
+            saveData();
+            renderAll();
+            toast("Fatura manual removida, voltando à soma dos gastos");
+          }
+          return;
+        }
+        const val = parseFloat(raw);
+        if (isNaN(val) || val < 0) {
+          input.value = inv ? inv.amount : "";
+          return;
+        }
+        setInvoice(card.id, state.currentMonth, val);
+        saveData();
+        renderAll();
+        toast("Fatura do cartão salva");
+      });
+    });
   }
 
   function renderDashboard() {
@@ -223,11 +288,8 @@
       if (card.limit) subText += ` · Limite ${formatCurrency(card.limit)}`;
 
       const row = document.createElement("div");
-      row.className = "row-card row-invoice";
-      row.addEventListener("click", (e) => {
-        if (e.target.classList.contains("invoice-input")) return;
-        openCardModal(card.id);
-      });
+      row.className = "row-card";
+      row.addEventListener("click", () => openCardModal(card.id));
       row.innerHTML = `
         <div class="swatch" style="background:${card.color}"></div>
         <div class="row-main">
@@ -235,41 +297,9 @@
           <div class="row-sub">${subText}</div>
           ${pct !== null ? `<div class="progress-bar ${pct >= 100 ? "over" : ""}"><div style="width:${pct}%"></div></div>` : ""}
         </div>
-        <input type="number" class="invoice-input" inputmode="decimal" step="0.01" min="0"
-          placeholder="${formatCurrency(expensesSumForCard(card.id, state.currentMonth))}"
-          value="${inv ? inv.amount : ""}">
+        <div class="row-value">${formatCurrency(t)}</div>
       `;
       cardsList.appendChild(row);
-
-      // Campo de fatura manual: salva só ao perder o foco (change), não a
-      // cada tecla, pra não re-renderizar a lista inteira enquanto digita.
-      const input = row.querySelector(".invoice-input");
-      input.addEventListener("click", (e) => e.stopPropagation());
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") input.blur();
-      });
-      input.addEventListener("change", () => {
-        const raw = input.value.trim();
-        if (raw === "") {
-          // campo limpo = volta a somar os gastos lançados automaticamente
-          if (inv) {
-            removeInvoice(card.id, state.currentMonth);
-            saveData();
-            renderAll();
-            toast("Fatura manual removida, voltando à soma dos gastos");
-          }
-          return;
-        }
-        const val = parseFloat(raw);
-        if (isNaN(val) || val < 0) {
-          input.value = inv ? inv.amount : "";
-          return;
-        }
-        setInvoice(card.id, state.currentMonth, val);
-        saveData();
-        renderAll();
-        toast("Fatura do cartão salva");
-      });
     });
 
     // by category

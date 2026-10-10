@@ -53,7 +53,11 @@
       </div>
     </div>
 
-    <!-- Cada linha aqui tem um campo de fatura manual (ver renderDashboard em app.js) -->
+    <!-- Lançamento rápido: digitar o total da fatura do mês por cartão, sem lançar gasto por gasto (ver renderInvoiceEntry em app.js) -->
+    <h2 class="section-title">Lançar fatura do mês</h2>
+    <div id="invoiceEntryList" class="list"></div>
+    <p class="empty-hint" id="invoiceEntryEmpty" hidden>Cadastre um cartão para lançar a fatura aqui.</p>
+
     <h2 class="section-title">Por cartão</h2>
     <div id="cardsSummaryList" class="list"></div>
     <p class="empty-hint" id="cardsSummaryEmpty" hidden>Nenhum cartão cadastrado ainda.</p>
