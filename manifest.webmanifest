@@ -1,6 +1,6 @@
 {
-  "name": "Controle Financeiro",
-  "short_name": "Finanças",
+  "name": "Ekkonomics",
+  "short_name": "Ekko",
   "description": "Controle de cartões e gastos mensais",
   "start_url": "./index.html",
   "scope": "./",

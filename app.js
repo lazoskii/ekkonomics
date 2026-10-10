@@ -7,20 +7,21 @@
   function loadData() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return { cards: [], expenses: [] };
+      if (!raw) return { cards: [], expenses: [], invoices: [] };
       const parsed = JSON.parse(raw);
       return {
         cards: Array.isArray(parsed.cards) ? parsed.cards : [],
         expenses: Array.isArray(parsed.expenses) ? parsed.expenses : [],
+        invoices: Array.isArray(parsed.invoices) ? parsed.invoices : [],
       };
     } catch (e) {
       console.error("Falha ao ler dados salvos", e);
-      return { cards: [], expenses: [] };
+      return { cards: [], expenses: [], invoices: [] };
     }
   }
 
   function saveData() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ cards: state.cards, expenses: state.expenses }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ cards: state.cards, expenses: state.expenses, invoices: state.invoices }));
   }
 
   /* ---------- state ---------- */
@@ -73,6 +74,31 @@
 
   function expensesOfMonth(monthKey) {
     return state.expenses.filter((e) => e.date.slice(0, 7) === monthKey);
+  }
+
+  function expensesSumForCard(cardId, monthKey) {
+    return state.expenses
+      .filter((e) => e.cardId === cardId && e.date.slice(0, 7) === monthKey)
+      .reduce((s, e) => s + e.amount, 0);
+  }
+
+  function getInvoice(cardId, monthKey) {
+    return state.invoices.find((i) => i.cardId === cardId && i.month === monthKey);
+  }
+
+  function setInvoice(cardId, monthKey, amount) {
+    const idx = state.invoices.findIndex((i) => i.cardId === cardId && i.month === monthKey);
+    if (idx >= 0) state.invoices[idx].amount = amount;
+    else state.invoices.push({ cardId, month: monthKey, amount });
+  }
+
+  function removeInvoice(cardId, monthKey) {
+    state.invoices = state.invoices.filter((i) => !(i.cardId === cardId && i.month === monthKey));
+  }
+
+  function cardMonthTotal(cardId, monthKey) {
+    const inv = getInvoice(cardId, monthKey);
+    return inv ? inv.amount : expensesSumForCard(cardId, monthKey);
   }
 
   function toast(msg) {
@@ -140,13 +166,14 @@
 
   function renderDashboard() {
     const monthExpenses = expensesOfMonth(state.currentMonth);
-    const total = monthExpenses.reduce((s, e) => s + e.amount, 0);
+
+    // by card (respects manual invoice override when present)
+    const byCard = new Map();
+    state.cards.forEach((c) => byCard.set(c.id, cardMonthTotal(c.id, state.currentMonth)));
+    const total = [...byCard.values()].reduce((s, v) => s + v, 0);
     $("totalMonth").textContent = formatCurrency(total);
     $("countMonth").textContent = String(monthExpenses.length);
 
-    // by card
-    const byCard = new Map();
-    monthExpenses.forEach((e) => byCard.set(e.cardId, (byCard.get(e.cardId) || 0) + e.amount));
     const cardsList = $("cardsSummaryList");
     cardsList.innerHTML = "";
     const cardsWithTotals = state.cards
@@ -156,20 +183,61 @@
     $("cardsSummaryEmpty").hidden = state.cards.length > 0;
 
     cardsWithTotals.forEach(({ card, total: t }) => {
-      const row = document.createElement("div");
-      row.className = "row-card";
-      row.addEventListener("click", () => openCardModal(card.id));
+      const inv = getInvoice(card.id, state.currentMonth);
+      const expCount = state.expenses.filter((e) => e.cardId === card.id && e.date.slice(0, 7) === state.currentMonth).length;
       const pct = card.limit ? Math.min(100, (t / card.limit) * 100) : null;
+
+      let subText;
+      if (inv) subText = "Fatura lançada manualmente";
+      else if (expCount > 0) subText = `Soma de ${expCount} gasto${expCount > 1 ? "s" : ""}`;
+      else subText = "Nenhum gasto lançado";
+      if (card.limit) subText += ` · Limite ${formatCurrency(card.limit)}`;
+
+      const row = document.createElement("div");
+      row.className = "row-card row-invoice";
+      row.addEventListener("click", (e) => {
+        if (e.target.classList.contains("invoice-input")) return;
+        openCardModal(card.id);
+      });
       row.innerHTML = `
         <div class="swatch" style="background:${card.color}"></div>
         <div class="row-main">
           <div class="row-title">${escapeHtml(card.name)}</div>
-          <div class="row-sub">${card.limit ? `Limite ${formatCurrency(card.limit)}` : "Sem limite definido"}</div>
+          <div class="row-sub">${subText}</div>
           ${pct !== null ? `<div class="progress-bar ${pct >= 100 ? "over" : ""}"><div style="width:${pct}%"></div></div>` : ""}
         </div>
-        <div class="row-value">${formatCurrency(t)}</div>
+        <input type="number" class="invoice-input" inputmode="decimal" step="0.01" min="0"
+          placeholder="${formatCurrency(expensesSumForCard(card.id, state.currentMonth))}"
+          value="${inv ? inv.amount : ""}">
       `;
       cardsList.appendChild(row);
+
+      const input = row.querySelector(".invoice-input");
+      input.addEventListener("click", (e) => e.stopPropagation());
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") input.blur();
+      });
+      input.addEventListener("change", () => {
+        const raw = input.value.trim();
+        if (raw === "") {
+          if (inv) {
+            removeInvoice(card.id, state.currentMonth);
+            saveData();
+            renderAll();
+            toast("Fatura manual removida, voltando à soma dos gastos");
+          }
+          return;
+        }
+        const val = parseFloat(raw);
+        if (isNaN(val) || val < 0) {
+          input.value = inv ? inv.amount : "";
+          return;
+        }
+        setInvoice(card.id, state.currentMonth, val);
+        saveData();
+        renderAll();
+        toast("Fatura do cartão salva");
+      });
     });
 
     // by category
@@ -229,9 +297,7 @@
     list.innerHTML = "";
     $("cardsEmpty").hidden = state.cards.length > 0;
     state.cards.forEach((card) => {
-      const monthTotal = expensesOfMonth(state.currentMonth)
-        .filter((e) => e.cardId === card.id)
-        .reduce((s, e) => s + e.amount, 0);
+      const monthTotal = cardMonthTotal(card.id, state.currentMonth);
       const row = document.createElement("div");
       row.className = "row-card";
       row.addEventListener("click", () => openCardModal(card.id));
@@ -361,6 +427,7 @@
     if (!confirm(msg)) return;
     state.cards = state.cards.filter((c) => c.id !== id);
     state.expenses = state.expenses.filter((e) => e.cardId !== id);
+    state.invoices = state.invoices.filter((i) => i.cardId !== id);
     saveData();
     closeCardModal();
     renderAll();
@@ -457,7 +524,7 @@
 
   /* ---------- settings: export / import / clear ---------- */
   $("btnExport").addEventListener("click", () => {
-    const payload = { exportedAt: new Date().toISOString(), cards: state.cards, expenses: state.expenses };
+    const payload = { exportedAt: new Date().toISOString(), cards: state.cards, expenses: state.expenses, invoices: state.invoices };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -484,14 +551,21 @@
         const replace = confirm(
           "Importar vai SUBSTITUIR todos os dados atuais por este backup. Toque OK para substituir, ou Cancelar para mesclar com os dados existentes."
         );
+        const parsedInvoices = Array.isArray(parsed.invoices) ? parsed.invoices : [];
         if (replace) {
           state.cards = parsed.cards;
           state.expenses = parsed.expenses;
+          state.invoices = parsedInvoices;
         } else {
           const existingCardIds = new Set(state.cards.map((c) => c.id));
           parsed.cards.forEach((c) => { if (!existingCardIds.has(c.id)) state.cards.push(c); });
           const existingExpIds = new Set(state.expenses.map((x) => x.id));
           parsed.expenses.forEach((x) => { if (!existingExpIds.has(x.id)) state.expenses.push(x); });
+          parsedInvoices.forEach((inv) => {
+            const idx = state.invoices.findIndex((i) => i.cardId === inv.cardId && i.month === inv.month);
+            if (idx >= 0) state.invoices[idx] = inv;
+            else state.invoices.push(inv);
+          });
         }
         saveData();
         renderAll();
@@ -509,6 +583,7 @@
     if (!confirm("Isso vai apagar TODOS os cartões e gastos deste dispositivo. Essa ação não pode ser desfeita. Continuar?")) return;
     state.cards = [];
     state.expenses = [];
+    state.invoices = [];
     saveData();
     renderAll();
     toast("Dados apagados");

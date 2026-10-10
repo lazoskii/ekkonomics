@@ -1,4 +1,4 @@
-const CACHE_NAME = "controle-financeiro-v3";
+const CACHE_NAME = "ekko-v3";
 const ASSETS = [
   "./",
   "./index.html",
