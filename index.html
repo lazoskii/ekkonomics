@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Controle Financeiro</title>
+<meta name="description" content="Controle seus cartões e gastos mensais de forma simples.">
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2563eb">
+
+<!-- iOS home screen app support -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Finanças">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <h1 id="pageTitle">Início</h1>
+  <div class="month-switch">
+    <button id="prevMonth" aria-label="Mês anterior">‹</button>
+    <span id="monthLabel">—</span>
+    <button id="nextMonth" aria-label="Próximo mês">›</button>
+  </div>
+</header>
+
+<main id="main">
+
+  <section id="view-dashboard" class="view active">
+    <div class="summary-row">
+      <div class="stat-card primary">
+        <span class="stat-label">Total do mês</span>
+        <span class="stat-value" id="totalMonth">R$ 0,00</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Gastos lançados</span>
+        <span class="stat-value" id="countMonth">0</span>
+      </div>
+    </div>
+
+    <h2 class="section-title">Por cartão</h2>
+    <div id="cardsSummaryList" class="list"></div>
+    <p class="empty-hint" id="cardsSummaryEmpty" hidden>Nenhum cartão cadastrado ainda.</p>
+
+    <h2 class="section-title">Por categoria</h2>
+    <div id="categorySummaryList" class="list"></div>
+    <p class="empty-hint" id="categorySummaryEmpty" hidden>Sem gastos neste mês.</p>
+
+    <h2 class="section-title">Próximos vencimentos</h2>
+    <div id="dueList" class="list"></div>
+    <p class="empty-hint" id="dueEmpty" hidden>Cadastre o dia de vencimento nos cartões para ver aqui.</p>
+  </section>
+
+  <section id="view-cards" class="view">
+    <div id="cardsList" class="list"></div>
+    <p class="empty-hint" id="cardsEmpty" hidden>Nenhum cartão ainda. Toque no botão + para adicionar.</p>
+  </section>
+
+  <section id="view-expenses" class="view">
+    <div class="filters">
+      <select id="filterCard">
+        <option value="">Todos os cartões</option>
+      </select>
+    </div>
+    <div id="expensesList" class="list"></div>
+    <p class="empty-hint" id="expensesEmpty" hidden>Nenhum gasto neste mês.</p>
+  </section>
+
+  <section id="view-settings" class="view">
+    <h2 class="section-title">Backup dos dados</h2>
+    <div class="settings-group">
+      <button id="btnExport" class="btn btn-secondary">⬇️ Exportar backup (.json)</button>
+      <button id="btnImport" class="btn btn-secondary">⬆️ Importar backup</button>
+      <input type="file" id="importFile" accept="application/json" hidden>
+    </div>
+    <p class="about-text">Os dados ficam salvos apenas neste navegador/dispositivo. Use exportar para fazer backup ou para levar seus cartões e gastos para outro aparelho — depois use importar lá.</p>
+
+    <h2 class="section-title">Dados</h2>
+    <div class="settings-group">
+      <button id="btnClear" class="btn btn-danger">🗑️ Apagar todos os dados</button>
+    </div>
+  </section>
+
+</main>
+
+<button id="fab" class="fab" aria-label="Adicionar">+</button>
+
+<nav class="bottom-nav">
+  <button data-view="dashboard" class="nav-btn active"><span class="icon">🏠</span><span>Início</span></button>
+  <button data-view="cards" class="nav-btn"><span class="icon">💳</span><span>Cartões</span></button>
+  <button data-view="expenses" class="nav-btn"><span class="icon">🧾</span><span>Gastos</span></button>
+  <button data-view="settings" class="nav-btn"><span class="icon">⚙️</span><span>Mais</span></button>
+</nav>
+
+<!-- Modal: cartão -->
+<div id="modalCard" class="modal-overlay hidden">
+  <div class="modal">
+    <h3 id="cardModalTitle">Novo cartão</h3>
+    <form id="formCard">
+      <label>Nome do cartão
+        <input type="text" id="cardName" required placeholder="Ex: Nubank">
+      </label>
+      <label>Cor
+        <div id="colorPicker" class="color-picker"></div>
+      </label>
+      <label>Limite (opcional)
+        <input type="number" id="cardLimit" step="0.01" min="0" placeholder="0,00">
+      </label>
+      <div class="field-row">
+        <label>Dia de fechamento
+          <input type="number" id="cardClosing" min="1" max="31" placeholder="Ex: 20">
+        </label>
+        <label>Dia de vencimento
+          <input type="number" id="cardDue" min="1" max="31" placeholder="Ex: 28">
+        </label>
+      </div>
+      <input type="hidden" id="cardId">
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="cardDeleteBtn" hidden>Excluir</button>
+        <button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: gasto -->
+<div id="modalExpense" class="modal-overlay hidden">
+  <div class="modal">
+    <h3 id="expenseModalTitle">Novo gasto</h3>
+    <form id="formExpense">
+      <label>Cartão
+        <select id="expenseCard" required></select>
+      </label>
+      <label>Descrição
+        <input type="text" id="expenseDesc" required placeholder="Ex: Mercado">
+      </label>
+      <label>Valor (R$)
+        <input type="number" id="expenseAmount" step="0.01" min="0.01" required placeholder="0,00" inputmode="decimal">
+      </label>
+      <div class="field-row">
+        <label>Data
+          <input type="date" id="expenseDate" required>
+        </label>
+        <label>Categoria
+          <select id="expenseCategory">
+            <option>Alimentação</option>
+            <option>Transporte</option>
+            <option>Moradia</option>
+            <option>Lazer</option>
+            <option>Saúde</option>
+            <option>Compras</option>
+            <option>Contas</option>
+            <option>Outros</option>
+          </select>
+        </label>
+      </div>
+      <input type="hidden" id="expenseId">
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="expenseDeleteBtn" hidden>Excluir</button>
+        <button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
